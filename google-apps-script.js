@@ -1,21 +1,89 @@
 // ============================================================
-// ECOSOCH SOLAR QUIZ — GOOGLE APPS SCRIPT
-// Paste this entire file into Google Apps Script and deploy
-// as a Web App (Execute as: Me, Access: Anyone)
+// ECOSOCH SOLAR QUIZ — GOOGLE APPS SCRIPT  (UPDATED)
+// Deploy as Web App: Execute as Me, Access: Anyone
 // ============================================================
 
 const SPREADSHEET_ID   = '1dTN76objOt1VsYa7ZwafdC5EFCloLzulSmYme9LV70I';
 const QUIZ_DATA_SHEET  = 'UserQuizData';
 const SCORE_DATA_SHEET = 'UserScoreData';
 
-// ---------- Entry Points ----------
-
-function doGet(e) {
-  return ContentService
-    .createTextOutput(JSON.stringify({ status: 'EcoSoch Quiz API is running ✅' }))
-    .setMimeType(ContentService.MimeType.JSON);
+// ── Answer extractor (mirrors JS side) ──
+function extractAnswerGAS(raw) {
+  if (!raw) return '';
+  const s = raw.toString().trim().toUpperCase();
+  if (/^[ABCD]$/.test(s)) return s;
+  let m;
+  m = s.match(/^([ABCD])[.):\-\s]/);   if (m) return m[1];
+  m = s.match(/^[(\[{]([ABCD])[)\]}]/); if (m) return m[1];
+  m = s.match(/(?:OPTION|OPT|ANSWER|ANS(?:WER)?)[.\s:]*([ABCD])\b/); if (m) return m[1];
+  m = s.match(/(?:CORRECT\s+)?ANSWER\s+IS\s+([ABCD])\b/);            if (m) return m[1];
+  m = s.match(/^([1-4])$/);  if (m) return 'ABCD'['ABCD'.indexOf('')] || 'ABCD'[parseInt(m[1]) - 1];
+  m = s.match(/[ABCD]/);     if (m) return m[0];
+  return '';
 }
 
+// ============================================================
+// doGet — handles ?action=getQuestions (fresh data, no cache)
+// ============================================================
+function doGet(e) {
+  // ── CORS headers helper ──
+  const output = (data) =>
+    ContentService
+      .createTextOutput(JSON.stringify(data))
+      .setMimeType(ContentService.MimeType.JSON);
+
+  if (e && e.parameter && e.parameter.action === 'getQuestions') {
+    try {
+      const ss = SpreadsheetApp.openById(SPREADSHEET_ID);
+      const result = { beginner: [], intermediate: [], hard: [], counts: {} };
+
+      [['Beginner','beginner'], ['Intermediate','intermediate'], ['Hard','hard']].forEach(([tab, key]) => {
+        const sheet = ss.getSheetByName(tab);
+        if (!sheet) { result[key] = []; result.counts[key] = 0; return; }
+
+        const lastRow = sheet.getLastRow();
+        if (lastRow <= 1) { result[key] = []; result.counts[key] = 0; return; }
+
+        // Read all data at once (fast)
+        const data = sheet.getRange(2, 1, lastRow - 1, 8).getValues();
+        const questions = [];
+
+        data.forEach(row => {
+          const q   = (row[1] || '').toString().trim();
+          if (!q) return;
+          const ans = extractAnswerGAS(row[6]);
+          if (!ans) return;
+          questions.push({
+            topic: (row[0] || '').toString().trim() || 'General',
+            q,
+            opts: [
+              (row[2] || '').toString().trim() || '—',
+              (row[3] || '').toString().trim() || '—',
+              (row[4] || '').toString().trim() || '—',
+              (row[5] || '').toString().trim() || '—'
+            ],
+            ans: 'ABCD'.indexOf(ans),
+            exp: (row[7] || '').toString().trim()
+          });
+        });
+
+        result[key] = questions;
+        result.counts[key] = questions.length;
+      });
+
+      return output({ success: true, ...result });
+    } catch (err) {
+      return output({ success: false, error: err.toString() });
+    }
+  }
+
+  // Default GET response
+  return output({ status: 'EcoSoch Quiz API is running ✅' });
+}
+
+// ============================================================
+// doPost — handles score saving, data logging, session clear
+// ============================================================
 function doPost(e) {
   try {
     const data   = JSON.parse(e.postData.contents);
@@ -41,10 +109,10 @@ function doPost(e) {
   }
 }
 
-// ---------- Sheet Setup ----------
-
+// ============================================================
+// Sheet Setup
+// ============================================================
 function setupSheets(ss) {
-  // ── UserQuizData ──
   let quizSheet = ss.getSheetByName(QUIZ_DATA_SHEET);
   if (!quizSheet) {
     quizSheet = ss.insertSheet(QUIZ_DATA_SHEET);
@@ -53,11 +121,11 @@ function setupSheets(ss) {
       'Q No.', 'Question', 'Topic', 'User Answer', 'Correct Answer',
       'Result', 'Round Score', 'Total Questions'
     ];
-    const headerRange = quizSheet.getRange(1, 1, 1, headers.length);
-    headerRange.setValues([headers]);
-    headerRange.setFontWeight('bold');
-    headerRange.setBackground('#F57C00');
-    headerRange.setFontColor('#FFFFFF');
+    const hr = quizSheet.getRange(1, 1, 1, headers.length);
+    hr.setValues([headers]);
+    hr.setFontWeight('bold');
+    hr.setBackground('#F57C00');
+    hr.setFontColor('#FFFFFF');
     quizSheet.setFrozenRows(1);
     quizSheet.setColumnWidth(7, 350);
     quizSheet.setColumnWidth(8, 180);
@@ -65,7 +133,6 @@ function setupSheets(ss) {
     quizSheet.setColumnWidth(10, 200);
   }
 
-  // ── UserScoreData ──
   let scoreSheet = ss.getSheetByName(SCORE_DATA_SHEET);
   if (!scoreSheet) {
     scoreSheet = ss.insertSheet(SCORE_DATA_SHEET);
@@ -75,11 +142,11 @@ function setupSheets(ss) {
       'Total Questions Attempted', 'Total Correct Answers',
       'Overall Accuracy %', 'Round-by-Round Breakdown'
     ];
-    const headerRange = scoreSheet.getRange(1, 1, 1, headers.length);
-    headerRange.setValues([headers]);
-    headerRange.setFontWeight('bold');
-    headerRange.setBackground('#1565C0');
-    headerRange.setFontColor('#FFFFFF');
+    const hr = scoreSheet.getRange(1, 1, 1, headers.length);
+    hr.setValues([headers]);
+    hr.setFontWeight('bold');
+    hr.setBackground('#1565C0');
+    hr.setFontColor('#FFFFFF');
     scoreSheet.setFrozenRows(1);
     scoreSheet.setColumnWidth(9, 500);
   }
@@ -87,8 +154,9 @@ function setupSheets(ss) {
   return { message: 'Sheets initialized successfully' };
 }
 
-// ---------- Add per-question data to UserQuizData ----------
-
+// ============================================================
+// Add per-question data
+// ============================================================
 function addQuizData(ss, data) {
   let sheet = ss.getSheetByName(QUIZ_DATA_SHEET);
   if (!sheet) { setupSheets(ss); sheet = ss.getSheetByName(QUIZ_DATA_SHEET); }
@@ -97,19 +165,11 @@ function addQuizData(ss, data) {
   const levelLabel = capitalise(data.level) + ' Level';
 
   const rows = (data.questions || []).map(q => [
-    timestamp,
-    data.sessionId,
-    data.userName,
-    levelLabel,
-    'Round ' + data.roundNumber,
-    'Q' + q.questionNumber,
-    q.question,
-    q.topic || '',
-    q.userAnswer,
-    q.correctAnswer,
+    timestamp, data.sessionId, data.userName,
+    levelLabel, 'Round ' + data.roundNumber, 'Q' + q.questionNumber,
+    q.question, q.topic || '', q.userAnswer, q.correctAnswer,
     q.isCorrect ? '✅ Correct' : '❌ Wrong',
-    data.roundScore + ' / ' + data.totalQuestions,
-    data.totalQuestions
+    data.roundScore + ' / ' + data.totalQuestions, data.totalQuestions
   ]);
 
   if (rows.length > 0) {
@@ -127,14 +187,15 @@ function addQuizData(ss, data) {
   return { rowsAdded: rows.length };
 }
 
-// ---------- Save summary row to UserScoreData ----------
-
+// ============================================================
+// Save summary row
+// ============================================================
 function saveScoreData(ss, data) {
   let sheet = ss.getSheetByName(SCORE_DATA_SHEET);
   if (!sheet) { setupSheets(ss); sheet = ss.getSheetByName(SCORE_DATA_SHEET); }
 
-  const timestamp = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
-  const breakdown = (data.rounds || []).map(r =>
+  const timestamp  = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
+  const breakdown  = (data.rounds || []).map(r =>
     capitalise(r.level) + ' Round ' + r.roundNumber + ': ' + r.score + '/' + r.totalQuestions
   ).join('  |  ');
   const levelsPlayed = [...new Set((data.rounds || []).map(r => capitalise(r.level)))].join(', ');
@@ -151,8 +212,9 @@ function saveScoreData(ss, data) {
   return { success: true };
 }
 
-// ---------- Delete this session's rows from UserQuizData ----------
-
+// ============================================================
+// Clear session rows
+// ============================================================
 function clearUserQuizData(ss, data) {
   const sheet = ss.getSheetByName(QUIZ_DATA_SHEET);
   if (!sheet) return { deleted: 0 };
@@ -171,47 +233,30 @@ function clearUserQuizData(ss, data) {
 }
 
 // ============================================================
-// ⏰  WEEKLY AUTO-CLEAR — UserQuizData
-// This function deletes ALL data rows in UserQuizData every week.
-// Set up: Apps Script → Triggers → Add Trigger:
-//   Function: weeklyAutoCleanUserQuizData
-//   Event source: Time-driven
-//   Type: Week timer → Every Monday (or any day) at 00:00–01:00
+// Weekly auto-clear
 // ============================================================
 function weeklyAutoCleanUserQuizData() {
   try {
     const ss    = SpreadsheetApp.openById(SPREADSHEET_ID);
     const sheet = ss.getSheetByName(QUIZ_DATA_SHEET);
     if (!sheet) return;
-
     const lastRow = sheet.getLastRow();
-    if (lastRow <= 1) {
-      Logger.log('UserQuizData is already empty — nothing to delete.');
-      return;
-    }
-
-    // Delete all rows after the header (row 1)
+    if (lastRow <= 1) { Logger.log('UserQuizData already empty.'); return; }
     sheet.deleteRows(2, lastRow - 1);
-    Logger.log('✅ Weekly auto-clear: Deleted ' + (lastRow - 1) + ' rows from UserQuizData on ' + new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }));
-
-    // Optional: log the cleanup in UserScoreData as a system note
+    Logger.log('✅ Weekly auto-clear: Deleted ' + (lastRow - 1) + ' rows.');
     const scoreSheet = ss.getSheetByName(SCORE_DATA_SHEET);
     if (scoreSheet) {
-      const note = new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' });
       scoreSheet.appendRow([
-        note, '⚙️ SYSTEM', 'weekly-auto-clear',
-        '', '', '', '',
-        '', '🗑️ Weekly auto-clear: ' + (lastRow - 1) + ' rows deleted from UserQuizData'
+        new Date().toLocaleString('en-IN', { timeZone: 'Asia/Kolkata' }),
+        '⚙️ SYSTEM', 'weekly-auto-clear', '', '', '', '', '',
+        '🗑️ Weekly auto-clear: ' + (lastRow - 1) + ' rows deleted from UserQuizData'
       ]);
       scoreSheet.getRange(scoreSheet.getLastRow(), 1, 1, 9).setBackground('#FFF9C4');
     }
-
   } catch (err) {
     Logger.log('❌ weeklyAutoCleanUserQuizData error: ' + err.toString());
   }
 }
-
-// ---------- Helpers ----------
 
 function capitalise(str) {
   if (!str) return '';
