@@ -1,0 +1,325 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1.0">
+<title>EcoSoch — Solar Knowledge Quiz Challenge</title>
+<link href="https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&family=Playfair+Display:wght@500;600&display=swap" rel="stylesheet">
+<link rel="stylesheet" href="ecosoch-quiz.css">
+</head>
+<body>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- QUESTIONS LOADING OVERLAY              -->
+<!-- ═══════════════════════════════════════ -->
+<div id="questions-loading-overlay" style="display:none;">
+  <div class="ql-card">
+    <div class="ql-sun">☀️</div>
+    <div class="ql-spinner"></div>
+    <p id="loading-msg">Connecting to Solar Mastery Vault…</p>
+    <small>Fetching your 1,500 questions from Google Sheets</small>
+  </div>
+</div>
+
+<!-- ═══════════════════════════════════════ -->
+<!-- SHEET ERROR BANNER                     -->
+<!-- ═══════════════════════════════════════ -->
+<div id="sheet-error-banner" style="display:none;">
+  <span>⚠️ Could not load questions from Google Sheets. Make sure the sheet is publicly accessible (View access for Anyone).</span>
+  <button onclick="document.getElementById('sheet-error-banner').style.display='none'; loadQuestionsFromSheets();">↺ Retry</button>
+</div>
+
+<!-- NAME MODAL -->
+<div class="modal-overlay" id="name-modal">
+  <div class="name-modal-card">
+    <div class="modal-sun">☀️</div>
+    <h2>Welcome to EcoSoch<br><em>Solar Quiz Challenge</em></h2>
+    <p>Enter your name to begin your solar knowledge journey</p>
+    <div class="modal-input-wrap">
+      <input type="text" id="user-name-input" placeholder="Your full name…" maxlength="60"
+        onkeydown="if(event.key==='Enter') submitName()">
+    </div>
+    <div class="modal-error" id="modal-error"></div>
+    <button class="modal-start-btn" onclick="submitName()">Begin Challenge →</button>
+    <p class="modal-note">Your score will be saved to our leaderboard at the end of your session.</p>
+  </div>
+</div>
+
+<!-- LOGOUT SAVING OVERLAY -->
+<div class="modal-overlay" id="logout-overlay" style="display:none;">
+  <div class="logout-modal-card">
+    <div class="logout-spinner"></div>
+    <h3 id="logout-message">Saving your results…</h3>
+    <p id="logout-sub">Please wait while we record your session.</p>
+  </div>
+</div>
+
+<!-- NAVIGATION -->
+<nav id="main-nav" style="display:none;">
+  <a href="https://ecosoch.com" class="nav-logo">
+    <img src="white-logo.png" alt="EcoSoch Logo" style="height:60px;">
+  </a>
+  <div class="nav-links">
+    <a href="#quiz">Quiz Challenge</a>
+    <a href="#leaderboard">Progress</a>
+    <span class="nav-user-badge" id="nav-user-badge"></span>
+    <a href="https://ecosoch.com" class="nav-cta">Back to website</a>
+  </div>
+</nav>
+
+<!-- LANDING BANNER -->
+<section class="landing-banner" id="landing" style="display:none;">
+  <div class="banner-bg"></div>
+  <div class="banner-content">
+    <div class="banner-badge">☀️ Knowledge Challenge · Test Your Solar Expertise</div>
+    <h1>Master Solar Energy<br><em>with EcoSoch</em></h1>
+    <p>Challenge yourself with <strong id="vault-total">1,500</strong> expertly crafted questions spanning solar panels, inverters, finance, and sustainable energy systems.</p>
+
+    <!-- Row 1: Round stats pills -->
+    <div class="banner-row banner-row-top">
+      <div class="banner-pill">
+        <span class="pill-icon">📝</span>
+        <span class="pill-val">15</span>
+        <span class="pill-lbl">Questions / Round</span>
+      </div>
+      <div class="banner-pill">
+        <span class="pill-icon">⏱️</span>
+        <span class="pill-val">~10</span>
+        <span class="pill-lbl">Minutes / Round</span>
+      </div>
+      <div class="banner-pill">
+        <span class="pill-icon">🔄</span>
+        <span class="pill-val">∞</span>
+        <span class="pill-lbl">Rounds Available</span>
+      </div>
+    </div>
+
+    <!-- Row 2: Vault cards -->
+    <div class="banner-vault-title">☀️ Solar Mastery Vault — Live from Google Sheets</div>
+    <div class="banner-row banner-row-vault">
+      <div class="vault-card vault-green">
+        <div class="vault-icon">🌱</div>
+        <div class="vault-count" id="vault-count-beginner">500</div>
+        <div class="vault-level">Beginner</div>
+        <div class="vault-desc">Fundamentals &amp; basics</div>
+      </div>
+      <div class="vault-card vault-amber">
+        <div class="vault-icon">⚡</div>
+        <div class="vault-count" id="vault-count-intermediate">500</div>
+        <div class="vault-level">Intermediate</div>
+        <div class="vault-desc">Systems &amp; technology</div>
+      </div>
+      <div class="vault-card vault-coral">
+        <div class="vault-icon">🔥</div>
+        <div class="vault-count" id="vault-count-hard">500</div>
+        <div class="vault-level">Hard</div>
+        <div class="vault-desc">Advanced &amp; financial</div>
+      </div>
+    </div>
+
+    <button class="start-btn" onclick="showLevelSelect()">Start Quiz Challenge →</button>
+  </div>
+</section>
+
+<!-- LEVEL SELECTION -->
+<section class="level-select" id="level-select">
+  <div class="level-container">
+    <div class="level-header-row">
+      <div>
+        <h2>Choose Your <em>Challenge Level</em></h2>
+        <p class="level-subtitle">Select a difficulty — questions are drawn live from the Solar Mastery Vault</p>
+      </div>
+      <button class="logout-btn-header" onclick="confirmLogout()">⏻ Logout</button>
+    </div>
+
+    <div class="level-grid">
+      <div class="level-card" onclick="startQuiz('beginner')">
+        <div class="level-icon" style="background:var(--green-pale)">🌱</div>
+        <h3>Beginner</h3>
+        <p>Start your solar journey with fundamental concepts</p>
+        <div class="level-details">
+          <div class="level-detail"><span class="detail-icon">📝</span><span id="beginner-attempted">0</span> questions attempted</div>
+          <div class="level-detail"><span class="detail-icon">✓</span><span id="beginner-correct">0</span> correct answers</div>
+          <div class="level-detail"><span class="detail-icon">🔄</span><span id="beginner-rounds">0</span> rounds this session</div>
+        </div>
+        <div class="level-progress"><div class="level-progress-bar" id="beginner-progress"></div></div>
+        <div class="level-vault-badge" id="beginner-vault-badge">500 questions in vault</div>
+        <button class="level-btn">Start Beginner →</button>
+      </div>
+
+      <div class="level-card" onclick="startQuiz('intermediate')">
+        <div class="level-icon" style="background:var(--amber-pale)">⚡</div>
+        <h3>Intermediate</h3>
+        <p>Dive deeper into solar systems and technology</p>
+        <div class="level-details">
+          <div class="level-detail"><span class="detail-icon">📝</span><span id="intermediate-attempted">0</span> questions attempted</div>
+          <div class="level-detail"><span class="detail-icon">✓</span><span id="intermediate-correct">0</span> correct answers</div>
+          <div class="level-detail"><span class="detail-icon">🔄</span><span id="intermediate-rounds">0</span> rounds this session</div>
+        </div>
+        <div class="level-progress"><div class="level-progress-bar" id="intermediate-progress"></div></div>
+        <div class="level-vault-badge" id="intermediate-vault-badge">500 questions in vault</div>
+        <button class="level-btn">Start Intermediate →</button>
+      </div>
+
+      <div class="level-card" onclick="startQuiz('hard')">
+        <div class="level-icon" style="background:var(--coral-pale)">🔥</div>
+        <h3>Hard</h3>
+        <p>Master advanced technical specifications and calculations</p>
+        <div class="level-details">
+          <div class="level-detail"><span class="detail-icon">📝</span><span id="hard-attempted">0</span> questions attempted</div>
+          <div class="level-detail"><span class="detail-icon">✓</span><span id="hard-correct">0</span> correct answers</div>
+          <div class="level-detail"><span class="detail-icon">🔄</span><span id="hard-rounds">0</span> rounds this session</div>
+        </div>
+        <div class="level-progress"><div class="level-progress-bar" id="hard-progress"></div></div>
+        <div class="level-vault-badge" id="hard-vault-badge">500 questions in vault</div>
+        <button class="level-btn">Start Hard →</button>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- QUIZ SECTION -->
+<section class="quiz-section" id="quiz-section">
+  <div class="quiz-layout">
+    <div class="quiz-main">
+      <div class="quiz-header">
+        <div class="quiz-level-badge" id="current-level-badge">Beginner Level</div>
+        <div class="quiz-progress-info">
+          <span id="quiz-progress-text">Question 1 of 15</span>
+          <span class="quiz-score-badge" id="current-score">0 pts</span>
+        </div>
+      </div>
+      <div class="quiz-progress-bar"><div class="quiz-progress-fill" id="quiz-progress-fill"></div></div>
+
+      <div class="question-card">
+        <!-- Topic badge — fixed top-right corner of the card -->
+        <div class="topic-corner" id="topic-corner" style="display:none;">
+          <span class="topic-corner-label">📚 Topic</span>
+          <span class="topic-corner-name" id="question-topic"></span>
+        </div>
+
+        <div class="question-meta">
+          <div class="question-number" id="question-number">Question 1</div>
+        </div>
+        <div class="question-text" id="question-text"></div>
+        <div class="options-grid" id="options-grid"></div>
+        <div class="answer-feedback" id="answer-feedback">
+          <div class="feedback-header" id="feedback-header"></div>
+          <div class="feedback-explanation" id="feedback-explanation"></div>
+        </div>
+        <button class="next-btn" id="next-btn" onclick="nextQuestion()">Next Question →</button>
+      </div>
+    </div>
+
+    <!-- Live Score Sidebar -->
+    <div class="score-sidebar">
+      <div class="score-sidebar-card">
+        <div class="score-sidebar-title">📊 Live Score</div>
+        <div class="score-sidebar-stat correct-stat">
+          <div class="sidebar-stat-icon">✅</div>
+          <div class="sidebar-stat-info">
+            <div class="sidebar-stat-val" id="live-correct">0</div>
+            <div class="sidebar-stat-lbl">Correct</div>
+          </div>
+        </div>
+        <div class="score-sidebar-stat wrong-stat">
+          <div class="sidebar-stat-icon">❌</div>
+          <div class="sidebar-stat-info">
+            <div class="sidebar-stat-val" id="live-wrong">0</div>
+            <div class="sidebar-stat-lbl">Wrong</div>
+          </div>
+        </div>
+        <div class="score-sidebar-divider"></div>
+        <div class="score-sidebar-stat remain-stat">
+          <div class="sidebar-stat-icon">⏳</div>
+          <div class="sidebar-stat-info">
+            <div class="sidebar-stat-val" id="live-remaining">15</div>
+            <div class="sidebar-stat-lbl">Remaining</div>
+          </div>
+        </div>
+        <div class="score-sidebar-user">👤 <span id="sidebar-username"></span></div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<!-- SCORE DASHBOARD -->
+<section class="score-dashboard" id="score-dashboard">
+  <div class="dashboard-container">
+    <div class="dashboard-icon">🎉</div>
+    <h2>Round Complete!</h2>
+    <div class="dashboard-level" id="dashboard-level">Beginner Level</div>
+    <div class="score-display">
+      <div class="score-circle">
+        <svg viewBox="0 0 200 200">
+          <circle cx="100" cy="100" r="90" class="score-bg"></circle>
+          <circle cx="100" cy="100" r="90" class="score-progress" id="score-circle"></circle>
+        </svg>
+        <div class="score-text">
+          <div class="score-percentage" id="score-percentage">0%</div>
+          <div class="score-fraction" id="score-fraction">0/15</div>
+        </div>
+      </div>
+      <!-- Grade Badge -->
+      <div class="score-grade-wrap">
+        <span class="score-grade-badge" id="score-grade">—</span>
+      </div>
+    </div>
+    <div class="score-stats">
+      <div class="score-stat"><div class="stat-val" id="stat-correct">0</div><div class="stat-lbl">Correct</div></div>
+      <div class="score-stat"><div class="stat-val" id="stat-wrong">0</div><div class="stat-lbl">Wrong</div></div>
+      <div class="score-stat"><div class="stat-val" id="stat-percentage">0%</div><div class="stat-lbl">Accuracy</div></div>
+    </div>
+    <div class="score-message" id="score-message"></div>
+    <div class="score-grade-badge" id="score-grade"></div>
+    <div class="session-summary" id="session-summary"></div>
+    <div class="dashboard-actions">
+      <button class="retake-btn" onclick="retakeQuiz()">↺ Retake Quiz</button>
+      <button class="home-btn"   onclick="goHome()">← Choose Level</button>
+    </div>
+    <button class="logout-dashboard-btn" onclick="confirmLogout()">⏻ End Session &amp; Logout</button>
+    <p class="logout-note">Logging out saves your summary to the leaderboard and clears this session's detailed data.</p>
+  </div>
+</section>
+
+<!-- OVERALL PROGRESS -->
+<section class="overall-progress" id="leaderboard">
+  <div class="progress-container">
+    <h2>Your Learning <em>Progress</em></h2>
+    <div class="overall-stats">
+      <div class="overall-stat-card">
+        <div class="overall-stat-icon" style="background:var(--green-pale)">📊</div>
+        <div class="overall-stat-content">
+          <div class="overall-stat-val" id="total-attempted">0</div>
+          <div class="overall-stat-lbl">Total Questions Attempted</div>
+        </div>
+      </div>
+      <div class="overall-stat-card">
+        <div class="overall-stat-icon" style="background:var(--amber-pale)">✓</div>
+        <div class="overall-stat-content">
+          <div class="overall-stat-val" id="total-correct">0</div>
+          <div class="overall-stat-lbl">Correct Answers</div>
+        </div>
+      </div>
+      <div class="overall-stat-card">
+        <div class="overall-stat-icon" style="background:var(--blue-pale)">📈</div>
+        <div class="overall-stat-content">
+          <div class="overall-stat-val" id="overall-accuracy">0%</div>
+          <div class="overall-stat-lbl">Overall Accuracy</div>
+        </div>
+      </div>
+    </div>
+  </div>
+</section>
+
+<footer>
+  <div class="footer-content">
+    <p>© <span id="footer-year">2026</span> EcoSoch Solar Pvt. Ltd. · <a href="https://ecosoch.com">ecosoch.com</a></p>
+    <p>Bangalore, Karnataka · Built with ☀️ by EcoSoch Knowledge Hub</p>
+  </div>
+</footer>
+
+<!-- Single script (no question_bank_data.js needed anymore) -->
+<script src="ecosoch-quiz.js"></script>
+</body>
+</html>
